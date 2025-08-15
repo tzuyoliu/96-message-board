@@ -329,8 +329,8 @@
 
     <script>
         // ---- Supabase integration ----
-        const supabaseUrl = 'YOUR_SUPABASE_URL'; // 替換為你的 Supabase URL
-        const supabaseKey = 'YOUR_SUPABASE_ANON_KEY'; // 替換為你的 anon key
+        const supabaseUrl = 'https://nkfgremeepozsagjzhaw.supabase.co'; // 替換為你的 Supabase URL
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZmdyZW1lZXBvenNhZ2p6aGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMzQyMTAsImV4cCI6MjA3MDgxMDIxMH0._i6mzzmWqPXAhc6NM8pZdVEeIBpxVtv8-L0RdFuwjlo'; // 替換為你的 anon key
         const { createClient } = (function() {
             // 內嵌簡化 Supabase JS 客戶端（模擬核心功能）
             return {
@@ -368,7 +368,7 @@
                     auth: {
                         signInWithOAuth: async () => {
                             // 模擬 GitHub 登入，實際需重定向
-                            return { user: { id: 'admin-user-id' } }; // 替換為實際 Admin user_id
+                            return { user: { id: '68b6ba43-1cb7-4bea-a846-e10de0beee34' } }; // 替換為實際 Admin user_id
                         },
                         signOut: async () => {},
                         getSession: async () => {
