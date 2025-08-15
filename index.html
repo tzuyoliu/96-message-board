@@ -685,6 +685,27 @@ ${message.image ? '包含圖片' : ''}`);
         // 初始渲染
         renderMessages();
         document.getElementById('message-input').addEventListener('input', updateCharCounter);
-    </script>
+    // 假設已內嵌 Supabase JS
+const supabaseUrl = 'YOUR_SUPABASE_URL';
+const supabaseKey = 'YOUR_SUPABASE_ANON_KEY';
+const supabase = {
+    auth: {
+        getSession: async () => {
+            // 模擬 Admin 登入，實際需 Supabase SDK
+            return { data: { session: { user: { id: 'admin-user-id' } } } };
+        }
+    }
+};
+
+function toggleAdminMode() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session && session.user.id === 'admin-user-id') {
+        isAdminMode = !isAdminMode;
+        document.getElementById('admin-toggle').textContent = isAdminMode ? '退出 Admin 模式' : '切換 Admin 模式';
+        renderMessages();
+    } else {
+        alert('僅限 Admin 用戶切換模式！');
+    }
+}
 </body>
 </html>
