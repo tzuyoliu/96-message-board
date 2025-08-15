@@ -1,0 +1,690 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Let's Talk</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <style>
+        /* 全局樣式：響應式、行動優先、深淺色自適應，統一字體 */
+        :root {
+            --bg-color: #f0f0f0;
+            --text-color: #000000;
+            --bubble-left: #e5e5ea;
+            --bubble-right: #007aff;
+            --bubble-text-left: #000000;
+            --bubble-text-right: #ffffff;
+            --timestamp-color: #8e8e93;
+            --input-bg: #ffffff;
+            --input-border: #c7c7cc;
+            --button-bg: #007aff;
+            --button-text: #ffffff;
+            --mosaic-bg: rgba(0, 0, 0, 0.5);
+            --reply-1: #BBA86C;
+            --reply-2: #7EAD7C;
+            --reply-3: #BD6478;
+            --reply-4: #D54950;
+            --reply-5: #2E1F25;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #1c1c1e;
+                --text-color: #ffffff;
+                --bubble-left: #2c2c2e;
+                --bubble-right: #0a84ff;
+                --bubble-text-left: #ffffff;
+                --bubble-text-right: #ffffff;
+                --timestamp-color: #8e8e93;
+                --input-bg: #2c2c2e;
+                --input-border: #3a3a3c;
+                --button-bg: #0a84ff;
+                --button-text: #ffffff;
+                --mosaic-bg: rgba(255, 255, 255, 0.5);
+            }
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 16px;
+            line-height: 1.4;
+            position: relative;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .message.left {
+            background-color: var(--bubble-left);
+            color: var(--bubble-text-left);
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+        }
+
+        .message.right {
+            background-color: var(--bubble-right);
+            color: var(--bubble-text-right);
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.reply-1 { background-color: var(--reply-1); color: #ffffff; }
+        .message.reply-2 { background-color: var(--reply-2); color: #ffffff; }
+        .message.reply-3 { background-color: var(--reply-3); color: #ffffff; }
+        .message.reply-4 { background-color: var(--reply-4); color: #ffffff; }
+        .message.reply-5 { background-color: var(--reply-5); color: #ffffff; }
+
+        .message.reply {
+            margin-left: 20px;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: var(--timestamp-color);
+            margin-top: 5px;
+            text-align: right;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .message.left .timestamp {
+            text-align: left;
+        }
+
+        .message.mosaic {
+            filter: blur(5px);
+            user-select: none;
+        }
+
+        .message img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 10px;
+            margin-top: 5px;
+        }
+
+        .url-preview {
+            margin-top: 5px;
+            padding: 8px;
+            border: 1px solid var(--input-border);
+            border-radius: 10px;
+            background-color: var(--input-bg);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .url-preview iframe {
+            width: 100%;
+            height: 200px;
+            border: none;
+            border-radius: 10px;
+        }
+
+        .url-preview .twitter-tweet {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text-color);
+            padding: 10px;
+            border: 1px solid var(--input-border);
+            border-radius: 10px;
+            background-color: var(--bubble-left);
+            max-width: 100%;
+        }
+
+        .url-preview .twitter-tweet p {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+
+        .url-preview .twitter-tweet a {
+            color: var(--button-bg);
+            text-decoration: none;
+            font-size: 12px;
+        }
+
+        .url-preview .twitter-tweet .tweet-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .url-preview .twitter-tweet .tweet-header img {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .url-preview .twitter-tweet .tweet-header span {
+            font-weight: bold;
+        }
+
+        .url-preview .twitter-tweet .tweet-footer {
+            font-size: 12px;
+            color: var(--timestamp-color);
+        }
+
+        #input-area {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 10px;
+            background-color: var(--bg-color);
+            border-top: 1px solid var(--input-border);
+            gap: 10px;
+            position: relative;
+        }
+
+        #message-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid var(--input-border);
+            border-radius: 20px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            font-size: 16px;
+            resize: none;
+            min-height: 40px;
+            max-height: 100px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        #char-counter {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            font-size: 12px;
+            color: var(--timestamp-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        #mosaic-checkbox {
+            margin: 0 5px;
+        }
+
+        label {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: var(--button-bg);
+            color: var(--button-text);
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .reply-btn {
+            font-size: 12px;
+            color: var(--timestamp-color);
+            cursor: pointer;
+            margin-top: 5px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .mosaic-btn {
+            font-size: 12px;
+            color: #ffffff;
+            cursor: pointer;
+            margin-left: 10px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        #scroll-to-bottom {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background-color: rgba(0, 0, 0, 0.3);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+            display: none;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        #scroll-to-bottom:hover {
+            opacity: 1;
+        }
+
+        #admin-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            background-color: var(--button-bg);
+            color: var(--button-text);
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        @media (max-width: 600px) {
+            #messages {
+                padding: 5px;
+            }
+            .message {
+                max-width: 90%;
+            }
+            #input-area {
+                flex-direction: row;
+                align-items: center;
+            }
+            button {
+                padding: 10px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="admin-toggle" onclick="toggleAdminMode()">切換 Admin 模式</div>
+    <div id="messages"></div>
+    <div id="input-area">
+        <textarea id="message-input" placeholder="익명으로 메시지를 보내기"></textarea>
+        <label>
+            <input type="checkbox" id="mosaic-checkbox">
+            모자이크
+        </label>
+        <button onclick="sendMessage()">↑</button>
+        <div id="char-counter"></div>
+    </div>
+    <button id="scroll-to-bottom" onclick="scrollToBottom()">↓</button>
+
+    <script>
+        // ---- state & storage ----
+        let messages = JSON.parse(localStorage.getItem('messages')) || [];
+        let lastSendTime = 0;
+        let isAdminMode = false;
+        let replyingTo = null;
+        let replyLevel = 0;
+        let lastActivityTime = Date.now();
+        const INACTIVITY_THRESHOLD = 5 * 60 * 1000;
+        const MAX_CHARS = 1000;
+
+        // ---- seed data ----
+        if (messages.length === 0) {
+            messages = [
+                { id: 1, content: '這是左邊的假訊息，從別人發的。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null },
+                { id: 2, content: '這是右邊的父留言。', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null },
+                { id: 3, content: '子留言 1 (應顯示)。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: 2, level: 1, image: null },
+                { id: 4, content: '子留言 2 (應隱藏，因只顯示 1 則)。', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: 2, level: 1, image: null },
+                { id: 5, content: '這是 모자이크 訊息，包含 YouTube：https://youtu.be/dQw4w9WgXcQ。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: true, parentId: null, level: 0, image: null },
+                { id: 6, content: 'https://x.com/elonmusk/status/1234567890123456789', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null }
+            ];
+            saveMessages();
+        }
+
+        // ---- render messages ----
+        function getReplyLevel(msgId) {
+            let level = 0;
+            let currentId = msgId;
+            while (currentId) {
+                const msg = messages.find(m => m.id === currentId);
+                if (!msg || !msg.parentId) break;
+                level++;
+                currentId = msg.parentId;
+            }
+            return level;
+        }
+
+        function renderMessages() {
+            const container = document.getElementById('messages');
+            container.innerHTML = '';
+            messages.filter(m => !m.parentId).forEach(parent => {
+                renderMessage(parent, container);
+                renderReplies(parent.id, container, 1);
+            });
+            scrollToBottom();
+            container.addEventListener('scroll', toggleScrollButton);
+            toggleScrollButton();
+        }
+
+        function renderReplies(parentId, container, level) {
+            if (level > 5) return;
+            const child = messages.find(m => m.parentId === parentId); // 只取第一則子留言
+            if (child) {
+                renderMessage(child, container, level);
+                renderReplies(child.id, container, level + 1);
+            }
+        }
+
+        function renderMessage(msg, container, level = 0) {
+            const div = document.createElement('div');
+            const isReply = level > 0;
+            div.className = `message ${msg.side} ${isReply ? `reply reply-${level}` : ''} ${msg.mosaic && !isAdminMode ? 'mosaic' : ''}`;
+            const escapedContent = escapeHtml(msg.content);
+            let contentHtml = `<div class="content">${escapedContent}</div>`;
+
+            // 網址預覽
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            const urls = msg.content.match(urlRegex) || [];
+            if (urls.length > 0) {
+                urls.forEach(url => {
+                    const youtubeId = extractYouTubeId(url);
+                    if (youtubeId) {
+                        contentHtml += `
+                            <div class="url-preview">
+                                <iframe src="https://www.youtube.com/embed/${youtubeId}" frameborder="0" allowfullscreen></iframe>
+                            </div>`;
+                    } else if (url.includes('x.com')) {
+                        const tweetId = extractTweetId(url);
+                        contentHtml += `
+                            <div class="url-preview">
+                                <blockquote class="twitter-tweet">
+                                    <div class="tweet-header">
+                                        <img src="https://x.com/favicon.ico" alt="Twitter Profile">
+                                        <span>@elonmusk</span>
+                                    </div>
+                                    <p>模擬推文內容 (ID: ${tweetId})</p>
+                                    <div class="tweet-footer">2025-08-15 16:26 (KST)</div>
+                                    <a href="${url}" target="_blank">View on X</a>
+                                </blockquote>
+                            </div>`;
+                    }
+                });
+            }
+
+            if (msg.image) {
+                contentHtml += `<img src="${msg.image}" alt="Pasted image">`;
+            }
+
+            div.innerHTML = `
+                ${contentHtml}
+                <div class="timestamp">${msg.timestamp}</div>
+                ${level < 5 ? `<span class="reply-btn" onclick="toggleReply(${msg.id}, ${level + 1})">reply</span>` : ''}
+            `;
+
+            // Admin 模式下所有留言顯示馬賽克切換按鈕
+            if (isAdminMode) {
+                const mosaicBtn = document.createElement('span');
+                mosaicBtn.className = 'mosaic-btn';
+                mosaicBtn.textContent = msg.mosaic ? '公開' : '隱藏';
+                mosaicBtn.onclick = () => toggleMosaic(msg.id);
+                div.appendChild(mosaicBtn);
+            }
+
+            container.appendChild(div);
+        }
+
+        // ---- send message ----
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const content = input.value.trim();
+            const mosaic = document.getElementById('mosaic-checkbox').checked;
+
+            if (!content && !pastedImage) return;
+
+            const now = Date.now();
+            if (now - lastSendTime < 5000) {
+                alert('請等待 5 秒後再發送');
+                return;
+            }
+
+            // ---- spam url check ----
+            const spamPatterns = [
+                /download/i, /app\.exe/i, /apk/i, /store\/app/i, /advert/i,
+                /rb\.gy|t\.co/i
+            ];
+            if (content) {
+                const hasSpam = spamPatterns.some(pattern => pattern.test(content));
+                if (hasSpam) {
+                    alert('No Spam Link !!');
+                    input.style.color = '#ff0000';
+                    input.style.textDecoration = 'line-through line-through';
+                    setTimeout(() => {
+                        input.style.color = '';
+                        input.style.textDecoration = '';
+                        input.value = '';
+                    }, 2000);
+                    return;
+                }
+            }
+
+            if (content.length > MAX_CHARS) {
+                alert(`訊息超過 ${MAX_CHARS} 字元上限！`);
+                return;
+            }
+
+            const wasInactive = now - lastActivityTime > INACTIVITY_THRESHOLD;
+            const newMessage = {
+                id: messages.length + 1,
+                content: content || '',
+                side: 'right',
+                timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+                mosaic,
+                parentId: replyingTo,
+                level: replyLevel,
+                image: pastedImage
+            };
+
+            messages.push(newMessage);
+            saveMessages();
+            renderMessages();
+
+            if (wasInactive) {
+                simulateEmailNotification(newMessage);
+            }
+
+            document.getElementById('message-input').value = '';
+            document.getElementById('mosaic-checkbox').checked = false;
+            pastedImage = null;
+            replyingTo = null;
+            replyLevel = 0;
+            document.getElementById('message-input').placeholder = '익명으로 메시지를 보내기';
+            lastSendTime = now;
+            lastActivityTime = now;
+        }
+
+        // ---- toggle mosaic ----
+        function toggleMosaic(id) {
+            const msg = messages.find(m => m.id === id);
+            if (msg) {
+                msg.mosaic = !msg.mosaic;
+                saveMessages();
+                renderMessages();
+            }
+        }
+
+        // ---- image paste handling ----
+        let pastedImage = null;
+        document.getElementById('message-input').addEventListener('paste', (e) => {
+            const items = e.clipboardData.items;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        pastedImage = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+        });
+
+        // ---- reply functionality ----
+        function toggleReply(id, level) {
+            if (replyingTo === id) {
+                replyingTo = null;
+                replyLevel = 0;
+                document.getElementById('message-input').placeholder = '익명으로 메시지를 보내기';
+            } else {
+                replyingTo = id;
+                replyLevel = level;
+                document.getElementById('message-input').placeholder = `reply ${level}...`;
+            }
+            document.getElementById('message-input').focus();
+        }
+
+        // ---- admin view ----
+        function toggleAdminMode() {
+            isAdminMode = !isAdminMode;
+            document.getElementById('admin-toggle').textContent = isAdminMode ? '退出 Admin 模式' : '切換 Admin 模式';
+            renderMessages();
+        }
+
+        // ---- utility functions ----
+        function saveMessages() {
+            localStorage.setItem('messages', JSON.stringify(messages));
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('messages');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function toggleScrollButton() {
+            const container = document.getElementById('messages');
+            const btn = document.getElementById('scroll-to-bottom');
+            if (container.scrollHeight - container.scrollTop - container.clientHeight > 100) {
+                btn.style.display = 'flex';
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+
+        function extractYouTubeId(url) {
+            const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+            const match = url.match(regex);
+            return match ? match[1] : '';
+        }
+
+        function extractTweetId(url) {
+            const regex = /status\/(\d+)/;
+            const match = url.match(regex);
+            return match ? match[1] : '';
+        }
+
+        // ---- email notification simulation ----
+        function simulateEmailNotification(message) {
+            console.log(`模擬 Email 通知寄往 tynntsai@gmail.com:
+主旨: 新留言通知
+內容: 新訊息於 ${message.timestamp}
+${message.content ? `文字: ${message.content}` : ''}
+${message.image ? '包含圖片' : ''}`);
+        }
+
+        // ---- textarea enter key handling ----
+        document.getElementById('message-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+            }
+            updateCharCounter();
+        });
+
+        // ---- esc key handling for cancel reply ----
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && replyingTo !== null) {
+                replyingTo = null;
+                replyLevel = 0;
+                document.getElementById('message-input').placeholder = '익명으로 메시지를 보내기';
+            }
+        });
+
+        // ---- character counter ----
+        function updateCharCounter() {
+            const input = document.getElementById('message-input');
+            const charCount = input.value.length;
+            const counter = document.getElementById('char-counter');
+            if (charCount >= 801) {
+                counter.textContent = `${charCount}/${MAX_CHARS}`;
+            } else {
+                counter.textContent = '';
+            }
+            if (charCount > MAX_CHARS) {
+                input.value = input.value.substring(0, MAX_CHARS);
+                counter.textContent = `${MAX_CHARS}/${MAX_CHARS}`;
+            }
+        }
+
+        // 初始渲染
+        renderMessages();
+        document.getElementById('message-input').addEventListener('input', updateCharCounter);
+    </script>
+</body>
+</html>
