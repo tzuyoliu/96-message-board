@@ -1,43 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -367,8 +328,61 @@
     <button id="scroll-to-bottom" onclick="scrollToBottom()">↓</button>
 
     <script>
+        // ---- Supabase integration ----
+        const supabaseUrl = 'YOUR_SUPABASE_URL'; // 替換為你的 Supabase URL
+        const supabaseKey = 'YOUR_SUPABASE_ANON_KEY'; // 替換為你的 anon key
+        const { createClient } = (function() {
+            // 內嵌簡化 Supabase JS 客戶端（模擬核心功能）
+            return {
+                createClient: (url, key) => ({
+                    from: (table) => ({
+                        select: () => ({
+                            order: (field, { ascending }) => ({
+                                then: async (cb) => {
+                                    const { data, error } = await (await fetch(`${url}/rest/v1/${table}?select=*&order=${field}.${ascending ? 'asc' : 'desc'}`, {
+                                        headers: { apikey: key, Authorization: `Bearer ${key}` }
+                                    })).json();
+                                    if (!error) cb({ data });
+                                }
+                            }),
+                            limit: (n) => ({
+                                single: () => ({
+                                    then: async (cb) => {
+                                        const { data, error } = await (await fetch(`${url}/rest/v1/${table}?select=*&limit=1`, {
+                                            headers: { apikey: key, Authorization: `Bearer ${key}` }
+                                        })).json();
+                                        if (!error) cb({ data: data[0] });
+                                    }
+                                })
+                            })
+                        }),
+                        insert: async (data) => {
+                            const { error } = await (await fetch(`${url}/rest/v1/${table}`, {
+                                method: 'POST',
+                                headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify(data)
+                            })).json();
+                            return { error };
+                        }
+                    }),
+                    auth: {
+                        signInWithOAuth: async () => {
+                            // 模擬 GitHub 登入，實際需重定向
+                            return { user: { id: 'admin-user-id' } }; // 替換為實際 Admin user_id
+                        },
+                        signOut: async () => {},
+                        getSession: async () => {
+                            // 模擬 session，實際需 Supabase SDK
+                            return { data: { session: { user: { id: 'admin-user-id' } } } };
+                        }
+                    }
+                })
+            };
+        })();
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
         // ---- state & storage ----
-        let messages = JSON.parse(localStorage.getItem('messages')) || [];
+        let messages = [];
         let lastSendTime = 0;
         let isAdminMode = false;
         let replyingTo = null;
@@ -376,6 +390,15 @@
         let lastActivityTime = Date.now();
         const INACTIVITY_THRESHOLD = 5 * 60 * 1000;
         const MAX_CHARS = 1000;
+
+        // ---- load messages ----
+        async function loadMessages() {
+            const { data, error } = await supabase.from('messages').select('*').order('timestamp', { ascending: false });
+            if (!error) {
+                messages = data || [];
+                renderMessages();
+            }
+        }
 
         // ---- seed data ----
         if (messages.length === 0) {
@@ -387,7 +410,9 @@
                 { id: 5, content: '這是 모자이크 訊息，包含 YouTube：https://youtu.be/dQw4w9WgXcQ。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: true, parentId: null, level: 0, image: null },
                 { id: 6, content: 'https://x.com/elonmusk/status/1234567890123456789', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null }
             ];
-            saveMessages();
+            supabase.from('messages').insert(messages).then(() => loadMessages());
+        } else {
+            loadMessages();
         }
 
         // ---- render messages ----
@@ -483,7 +508,7 @@
         }
 
         // ---- send message ----
-        function sendMessage() {
+        async function sendMessage() {
             const input = document.getElementById('message-input');
             const content = input.value.trim();
             const mosaic = document.getElementById('mosaic-checkbox').checked;
@@ -521,6 +546,7 @@
                 return;
             }
 
+            const { data: { session } } = await supabase.auth.getSession();
             const wasInactive = now - lastActivityTime > INACTIVITY_THRESHOLD;
             const newMessage = {
                 id: messages.length + 1,
@@ -530,11 +556,17 @@
                 mosaic,
                 parentId: replyingTo,
                 level: replyLevel,
-                image: pastedImage
+                image: pastedImage,
+                user_id: session?.user?.id || 'anonymous'
             };
 
+            const { error } = await supabase.from('messages').insert(newMessage);
+            if (error) {
+                alert('發送失敗，請稍後重試');
+                return;
+            }
+
             messages.push(newMessage);
-            saveMessages();
             renderMessages();
 
             if (wasInactive) {
@@ -552,12 +584,14 @@
         }
 
         // ---- toggle mosaic ----
-        function toggleMosaic(id) {
+        async function toggleMosaic(id) {
             const msg = messages.find(m => m.id === id);
             if (msg) {
-                msg.mosaic = !msg.mosaic;
-                saveMessages();
-                renderMessages();
+                const { error } = await supabase.from('messages').update({ mosaic: !msg.mosaic }).eq('id', id);
+                if (!error) {
+                    msg.mosaic = !msg.mosaic;
+                    renderMessages();
+                }
             }
         }
 
@@ -593,10 +627,15 @@
         }
 
         // ---- admin view ----
-        function toggleAdminMode() {
-            isAdminMode = !isAdminMode;
-            document.getElementById('admin-toggle').textContent = isAdminMode ? '退出 Admin 模式' : '切換 Admin 模式';
-            renderMessages();
+        async function toggleAdminMode() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session && session.user.id === 'admin-user-id') { // 替換為實際 Admin user_id
+                isAdminMode = !isAdminMode;
+                document.getElementById('admin-toggle').textContent = isAdminMode ? '退出 Admin 模式' : '切換 Admin 模式';
+                renderMessages();
+            } else {
+                alert('僅限 Admin 用戶切換模式！');
+            }
         }
 
         // ---- utility functions ----
@@ -683,29 +722,8 @@ ${message.image ? '包含圖片' : ''}`);
         }
 
         // 初始渲染
-        renderMessages();
+        loadMessages();
         document.getElementById('message-input').addEventListener('input', updateCharCounter);
-    // 假設已內嵌 Supabase JS
-const supabaseUrl = 'YOUR_SUPABASE_URL';
-const supabaseKey = 'YOUR_SUPABASE_ANON_KEY';
-const supabase = {
-    auth: {
-        getSession: async () => {
-            // 模擬 Admin 登入，實際需 Supabase SDK
-            return { data: { session: { user: { id: 'admin-user-id' } } } };
-        }
-    }
-};
-
-function toggleAdminMode() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session && session.user.id === 'admin-user-id') {
-        isAdminMode = !isAdminMode;
-        document.getElementById('admin-toggle').textContent = isAdminMode ? '退出 Admin 模式' : '切換 Admin 模式';
-        renderMessages();
-    } else {
-        alert('僅限 Admin 用戶切換模式！');
-    }
-}
+    </script>
 </body>
 </html>
