@@ -284,17 +284,15 @@
         }
 
         #admin-toggle {
-            position: fixed;
+            position: absolute;
             top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px;
-            background: rgba(0, 0, 0, 0.1);
+            right: 10px;
+            padding: 5px 10px;
+            background-color: var(--button-bg);
             color: var(--button-text);
-            border-radius: 50%;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 24px;
-            z-index: 1000;
+            font-size: 12px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
@@ -306,25 +304,17 @@
                 max-width: 90%;
             }
             #input-area {
-                flex-direction: column-reverse;
-                align-items: stretch;
-                padding-bottom: 30px;
-            }
-            #message-input {
-                flex: 2;
-            }
-            #mosaic-checkbox, label {
-                margin-top: 5px;
+                flex-direction: row;
+                align-items: center;
             }
             button {
                 padding: 10px 15px;
-                order: 1;
             }
         }
     </style>
 </head>
 <body>
-    <div id="admin-toggle" onclick="toggleAdminMode()">≡</div>
+    <div id="admin-toggle" onclick="toggleAdminMode()">切換 Admin 模式</div>
     <div id="messages"></div>
     <div id="input-area">
         <textarea id="message-input" placeholder="익명으로 메시지를 보내기"></textarea>
@@ -338,126 +328,8 @@
     <button id="scroll-to-bottom" onclick="scrollToBottom()">↓</button>
 
     <script>
-        // ---- Supabase integration ----
-        const supabaseUrl = 'https://nkfgremeepozsagjzhaw.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZmdyZW1lZXBvenNhZ2p6aGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMzQyMTAsImV4cCI6MjA3MDgxMDIxMH0._i6mzzmWqPXAhc6NM8pZdVEeIBpxVtv8-L0RdFuwjlo';
-        const { createClient } = (function() {
-            return {
-                createClient: (url, key) => ({
-                    from: (table) => ({
-                        select: () => ({
-                            order: (field, { ascending }) => ({
-                                then: async (cb) => {
-                                    try {
-                                        const response = await fetch(`${url}/rest/v1/${table}?select=*&order=${field}.${ascending ? 'asc' : 'desc'}`, {
-                                            headers: { apikey: key, Authorization: `Bearer ${key}` },
-                                            mode: 'cors',
-                                            credentials: 'include'
-                                        });
-                                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                                        const { data, error } = await response.json();
-                                        if (!error) cb({ data });
-                                        else console.error('Fetch error:', error);
-                                    } catch (error) {
-                                        console.error('Network error:', error);
-                                    }
-                                }
-                            }),
-                            limit: (n) => ({
-                                single: () => ({
-                                    then: async (cb) => {
-                                        try {
-                                            const response = await fetch(`${url}/rest/v1/${table}?select=*&limit=1`, {
-                                                headers: { apikey: key, Authorization: `Bearer ${key}` },
-                                                mode: 'cors',
-                                                credentials: 'include'
-                                            });
-                                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                                            const { data, error } = await response.json();
-                                            if (!error) cb({ data: data[0] });
-                                            else console.error('Fetch error:', error);
-                                        } catch (error) {
-                                            console.error('Network error:', error);
-                                        }
-                                    }
-                                })
-                            })
-                        }),
-                        insert: async (data) => {
-                            try {
-                                const response = await fetch(`${url}/rest/v1/${table}`, {
-                                    method: 'POST',
-                                    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(data),
-                                    mode: 'cors',
-                                    credentials: 'include'
-                                });
-                                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                                const { data: insertedData, error } = await response.json();
-                                return { data: insertedData, error };
-                            } catch (error) {
-                                console.error('Network error:', error);
-                                return { error };
-                            }
-                        },
-                        update: async (data) => ({
-                            eq: (field, value) => ({
-                                then: async (cb) => {
-                                    try {
-                                        const response = await fetch(`${url}/rest/v1/${table}?${field}=eq.${value}`, {
-                                            method: 'PATCH',
-                                            headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-                                            body: JSON.stringify(data),
-                                            mode: 'cors',
-                                            credentials: 'include'
-                                        });
-                                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                                        const { data: updatedData, error } = await response.json();
-                                        if (!error) cb({ data: updatedData });
-                                        else console.error('Fetch error:', error);
-                                    } catch (error) {
-                                        console.error('Network error:', error);
-                                    }
-                                }
-                            })
-                        })
-                    }),
-                    auth: {
-                        signInWithOAuth: async () => {
-                            window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=github&redirect_to=${window.location.origin}`;
-                            return { user: null };
-                        },
-                        signOut: async () => {
-                            await fetch(`${supabaseUrl}/auth/v1/logout`, {
-                                method: 'POST',
-                                headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
-                                credentials: 'include'
-                            });
-                            window.location.reload();
-                        },
-                        getSession: async () => {
-                            try {
-                                const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-                                    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
-                                    mode: 'cors',
-                                    credentials: 'include'
-                                });
-                                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                                const { user, error } = await response.json();
-                                return { data: { session: { user, error } } };
-                            } catch (error) {
-                                console.error('Network error:', error);
-                                return { data: { session: { user: null, error } } };
-                            }
-                        }
-                    }
-                })
-            };
-        })();
-        const supabase = createClient(supabaseUrl, supabaseKey);
-
         // ---- state & storage ----
-        let messages = [];
+        let messages = JSON.parse(localStorage.getItem('messages')) || [];
         let lastSendTime = 0;
         let isAdminMode = false;
         let replyingTo = null;
@@ -465,34 +337,18 @@
         let lastActivityTime = Date.now();
         const INACTIVITY_THRESHOLD = 5 * 60 * 1000;
         const MAX_CHARS = 1000;
-        const ADMIN_USER_ID = '68b6ba43-1cb7-4bea-a846-e10de0beee34';
 
-        // ---- initialize ----
-        (async () => {
-            await loadMessages();
-            if (messages.length === 0) {
-                const seedData = [
-                    { content: '這是左邊的假訊息，從別人發的。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null },
-                    { content: '這是右邊的父留言。', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null },
-                    { content: '子留言 1 (應顯示)。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: 2, level: 1, image: null },
-                    { content: '子留言 2 (應隱藏，因只顯示 1 則)。', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: 2, level: 1, image: null },
-                    { content: '這是 모자이크 訊息，包含 YouTube：https://youtu.be/dQw4w9WgXcQ。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: true, parentId: null, level: 0, image: null },
-                    { content: 'https://x.com/elonmusk/status/1234567890123456789', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null }
-                ];
-                const { error } = await supabase.from('messages').insert(seedData);
-                if (!error) await loadMessages();
-            }
-        })();
-
-        // ---- load messages ----
-        async function loadMessages() {
-            const { data, error } = await supabase.from('messages').select('*').order('timestamp', { ascending: false });
-            if (!error) {
-                messages = data || [];
-                renderMessages();
-            } else {
-                console.error('載入訊息失敗:', error.message || error);
-            }
+        // ---- seed data ----
+        if (messages.length === 0) {
+            messages = [
+                { id: 1, content: '這是左邊的假訊息，從別人發的。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null },
+                { id: 2, content: '這是右邊的父留言。', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null },
+                { id: 3, content: '子留言 1 (應顯示)。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: 2, level: 1, image: null },
+                { id: 4, content: '子留言 2 (應隱藏，因只顯示 1 則)。', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: 2, level: 1, image: null },
+                { id: 5, content: '這是 모자이크 訊息，包含 YouTube：https://youtu.be/dQw4w9WgXcQ。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: true, parentId: null, level: 0, image: null },
+                { id: 6, content: 'https://x.com/elonmusk/status/1234567890123456789', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null }
+            ];
+            saveMessages();
         }
 
         // ---- render messages ----
@@ -522,7 +378,7 @@
 
         function renderReplies(parentId, container, level) {
             if (level > 5) return;
-            const child = messages.find(m => m.parentId === parentId);
+            const child = messages.find(m => m.parentId === parentId); // 只取第一則子留言
             if (child) {
                 renderMessage(child, container, level);
                 renderReplies(child.id, container, level + 1);
@@ -588,7 +444,7 @@
         }
 
         // ---- send message ----
-        async function sendMessage() {
+        function sendMessage() {
             const input = document.getElementById('message-input');
             const content = input.value.trim();
             const mosaic = document.getElementById('mosaic-checkbox').checked;
@@ -626,37 +482,24 @@
                 return;
             }
 
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                alert('請先登入！');
-                supabase.auth.signInWithOAuth();
-                return;
-            }
-
             const wasInactive = now - lastActivityTime > INACTIVITY_THRESHOLD;
             const newMessage = {
+                id: messages.length + 1,
                 content: content || '',
                 side: 'right',
                 timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
                 mosaic,
                 parentId: replyingTo,
                 level: replyLevel,
-                image: pastedImage,
-                user_id: session.user.id
+                image: pastedImage
             };
 
-            const { data, error } = await supabase.from('messages').insert(newMessage).select();
-            if (error) {
-                alert('發送失敗，請稍後重試: ' + (error.message || error));
-                console.error('Insert error:', error);
-                return;
-            }
-
-            messages.push(data[0]);
+            messages.push(newMessage);
+            saveMessages();
             renderMessages();
 
             if (wasInactive) {
-                simulateEmailNotification(data[0]);
+                simulateEmailNotification(newMessage);
             }
 
             document.getElementById('message-input').value = '';
@@ -670,16 +513,12 @@
         }
 
         // ---- toggle mosaic ----
-        async function toggleMosaic(id) {
+        function toggleMosaic(id) {
             const msg = messages.find(m => m.id === id);
             if (msg) {
-                const { error } = await supabase.from('messages').update({ mosaic: !msg.mosaic }).eq('id', id);
-                if (error) {
-                    console.error('Update error:', error.message || error);
-                } else {
-                    msg.mosaic = !msg.mosaic;
-                    renderMessages();
-                }
+                msg.mosaic = !msg.mosaic;
+                saveMessages();
+                renderMessages();
             }
         }
 
@@ -715,15 +554,10 @@
         }
 
         // ---- admin view ----
-        async function toggleAdminMode() {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session && session.user.id === ADMIN_USER_ID) {
-                isAdminMode = !isAdminMode;
-                document.getElementById('admin-toggle').textContent = isAdminMode ? '退出 Admin 模式' : '≡';
-                renderMessages();
-            } else {
-                alert('僅限 Admin 用戶切換模式！');
-            }
+        function toggleAdminMode() {
+            isAdminMode = !isAdminMode;
+            document.getElementById('admin-toggle').textContent = isAdminMode ? '退出 Admin 模式' : '切換 Admin 模式';
+            renderMessages();
         }
 
         // ---- utility functions ----
@@ -810,22 +644,8 @@ ${message.image ? '包含圖片' : ''}`);
         }
 
         // 初始渲染
+        renderMessages();
         document.getElementById('message-input').addEventListener('input', updateCharCounter);
-        (async () => {
-            await loadMessages();
-            if (messages.length === 0) {
-                const seedData = [
-                    { content: '這是左邊的假訊息，從別人發的。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null },
-                    { content: '這是右邊的父留言。', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null },
-                    { content: '子留言 1 (應顯示)。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: 2, level: 1, image: null },
-                    { content: '子留言 2 (應隱藏，因只顯示 1 則)。', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: 2, level: 1, image: null },
-                    { content: '這是 모자이크 訊息，包含 YouTube：https://youtu.be/dQw4w9WgXcQ。', side: 'left', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: true, parentId: null, level: 0, image: null },
-                    { content: 'https://x.com/elonmusk/status/1234567890123456789', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null }
-                ];
-                const { error } = await supabase.from('messages').insert(seedData);
-                if (!error) await loadMessages();
-            }
-        })();
     </script>
 </body>
 </html>
