@@ -550,15 +550,16 @@
         }
 
         function renderMessage(msg, container, level = 0) {
+            if (!msg) return; // 防止 null 錯誤
             const div = document.createElement('div');
             const isReply = level > 0;
             div.className = `message ${msg.side} ${isReply ? `reply reply-${level}` : ''} ${msg.mosaic && !isAdminMode ? 'mosaic' : ''}`;
-            const escapedContent = escapeHtml(msg.content);
+            const escapedContent = escapeHtml(msg.content || '');
             let contentHtml = `<div class="content">${escapedContent}</div>`;
 
             // 網址預覽
             const urlRegex = /(https?:\/\/[^\s]+)/g;
-            const urls = msg.content.match(urlRegex) || [];
+            const urls = msg.content?.match(urlRegex) || [];
             if (urls.length > 0) {
                 urls.forEach(url => {
                     const youtubeId = extractYouTubeId(url);
@@ -591,12 +592,12 @@
 
             div.innerHTML = `
                 ${contentHtml}
-                <div class="timestamp">${msg.timestamp}</div>
-                ${level < 5 ? `<span class="reply-btn" onclick="toggleReply(${msg.id}, ${level + 1})">reply</span>` : ''}
+                <div class="timestamp">${msg.timestamp || ''}</div>
+                ${level < 5 ? `<span class="reply-btn" onclick="toggleReply(${msg.id || 0}, ${level + 1})">reply</span>` : ''}
             `;
 
             // Admin 模式下所有留言顯示馬賽克切換按鈕
-            if (isAdminMode) {
+            if (isAdminMode && msg.id) {
                 const mosaicBtn = document.createElement('span');
                 mosaicBtn.className = 'mosaic-btn';
                 mosaicBtn.textContent = msg.mosaic ? '公開' : '隱藏';
@@ -647,7 +648,7 @@
             }
 
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
+            if (!session || !session.user) {
                 alert('請先登入！');
                 supabase.auth.signInWithOAuth();
                 return;
@@ -692,8 +693,8 @@
 
         // ---- toggle mosaic ----
         async function toggleMosaic(id) {
-            const msg = messages.find(m => m.id === id);
-            if (msg) {
+            const msg = messages.find(m => m && m.id === id);
+            if (msg && msg.id) {
                 console.log('Toggling mosaic for id:', id, 'new value:', !msg.mosaic); // Debug
                 const { error } = await supabase.from('messages').update({ mosaic: !msg.mosaic }).eq('id', id);
                 if (error) {
@@ -702,6 +703,8 @@
                     msg.mosaic = !msg.mosaic;
                     renderMessages();
                 }
+            } else {
+                console.error('Invalid message or id:', { msg, id });
             }
         }
 
@@ -729,7 +732,7 @@
                 replyLevel = 0;
                 document.getElementById('message-input').placeholder = '익명으로 메시지를 보내기';
             } else {
-                replyingTo = id;
+                replyingTo = id || 0; // 防止 null
                 replyLevel = level;
                 document.getElementById('message-input').placeholder = `reply ${level}...`;
             }
@@ -740,13 +743,13 @@
         async function toggleAdminMode() {
             const { data: { session } } = await supabase.auth.getSession();
             console.log('Toggle Admin Mode - Session:', session); // Debug
-            if (session && session.user.id === ADMIN_USER_ID) {
+            if (session && session.user && session.user.id === ADMIN_USER_ID) {
                 isAdminMode = !isAdminMode;
                 document.getElementById('admin-toggle').textContent = isAdminMode ? '退出 Admin 模式' : '≡';
                 renderMessages();
             } else {
                 alert('僅限 Admin 用戶切換模式！請登入。');
-                if (!session) {
+                if (!session || !session.user) {
                     console.log('No session, triggering login...');
                     supabase.auth.signInWithOAuth();
                 }
