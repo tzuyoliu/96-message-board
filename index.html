@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Let's Talk</title>
-    <link rel="icon" type="image/x-icon" href="./favicon.ico">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <style>
         /* 全局樣式：響應式、行動優先、深淺色自適應，統一字體 */
         :root {
@@ -284,17 +284,15 @@
         }
 
         #admin-toggle {
-            position: fixed;
+            position: absolute;
             top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px;
-            background: rgba(0, 0, 0, 0.1);
+            right: 10px;
+            padding: 5px 10px;
+            background-color: var(--button-bg);
             color: var(--button-text);
-            border-radius: 50%;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 24px;
-            z-index: 1000;
+            font-size: 12px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
@@ -308,7 +306,7 @@
             #input-area {
                 flex-direction: column-reverse;
                 align-items: stretch;
-                padding-bottom: 60px;
+                padding-bottom: 30px;
             }
             #message-input {
                 flex: 2;
@@ -319,13 +317,12 @@
             button {
                 padding: 10px 15px;
                 order: 1;
-                margin-top: 10px;
             }
         }
     </style>
 </head>
 <body>
-    <div id="admin-toggle" onclick="toggleAdminMode()">≡</div>
+    <div id="admin-toggle" onclick="toggleAdminMode()">切換 Admin 模式</div>
     <div id="messages"></div>
     <div id="input-area">
         <textarea id="message-input" placeholder="익명으로 메시지를 보내기"></textarea>
@@ -340,8 +337,8 @@
 
     <script>
         // ---- Supabase integration ----
-        const supabaseUrl = 'https://nkfgremeepozsagjzhaw.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZmdyZW1lZXBvenNhZ2p6aGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMzQyMTAsImV4cCI6MjA3MDgxMDIxMH0._i6mzzmWqPXAhc6NM8pZdVEeIBpxVtv8-L0RdFuwjlo';
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://nkfgremeepozsagjzhaw.supabase.co';
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rZmdyZW1lZXBvenNhZ2p6aGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMzQyMTAsImV4cCI6MjA3MDgxMDIxMH0._i6mzzmWqPXAhc6NM8pZdVEeIBpxVtv8-L0RdFuwjlo';
         const { createClient } = (function() {
             return {
                 createClient: (url, key) => ({
@@ -355,15 +352,12 @@
                                             mode: 'cors',
                                             credentials: 'include'
                                         });
-                                        if (!response.ok) {
-                                            console.error(`Fetch failed for ${table}:`, response.status, response.statusText);
-                                            throw new Error(`HTTP error! status: ${response.status}`);
-                                        }
+                                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                                         const { data, error } = await response.json();
                                         if (!error) cb({ data });
-                                        else console.error(`Select error for ${table}:`, error);
+                                        else console.error('Fetch error:', error);
                                     } catch (error) {
-                                        console.error(`Network error for ${table}:`, error);
+                                        console.error('Network error:', error);
                                     }
                                 }
                             }),
@@ -376,15 +370,12 @@
                                                 mode: 'cors',
                                                 credentials: 'include'
                                             });
-                                            if (!response.ok) {
-                                                console.error(`Fetch failed for ${table} limit 1:`, response.status, response.statusText);
-                                                throw new Error(`HTTP error! status: ${response.status}`);
-                                            }
+                                            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                                             const { data, error } = await response.json();
                                             if (!error) cb({ data: data[0] });
-                                            else console.error(`Limit error for ${table}:`, error);
+                                            else console.error('Fetch error:', error);
                                         } catch (error) {
-                                            console.error(`Network error for ${table} limit 1:`, error);
+                                            console.error('Network error:', error);
                                         }
                                     }
                                 })
@@ -392,7 +383,6 @@
                         }),
                         insert: async (data) => {
                             try {
-                                console.log('Inserting data:', data); // Debug
                                 const response = await fetch(`${url}/rest/v1/${table}`, {
                                     method: 'POST',
                                     headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -400,14 +390,11 @@
                                     mode: 'cors',
                                     credentials: 'include'
                                 });
-                                if (!response.ok) {
-                                    console.error(`Insert failed for ${table}:`, response.status, response.statusText);
-                                    throw new Error(`HTTP error! status: ${response.status}`);
-                                }
+                                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                                 const { data: insertedData, error } = await response.json();
                                 return { data: insertedData, error };
                             } catch (error) {
-                                console.error(`Network error for ${table} insert:`, error);
+                                console.error('Network error:', error);
                                 return { error };
                             }
                         },
@@ -422,15 +409,12 @@
                                             mode: 'cors',
                                             credentials: 'include'
                                         });
-                                        if (!response.ok) {
-                                            console.error(`Update failed for ${table}:`, response.status, response.statusText);
-                                            throw new Error(`HTTP error! status: ${response.status}`);
-                                        }
+                                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                                         const { data: updatedData, error } = await response.json();
                                         if (!error) cb({ data: updatedData });
-                                        else console.error(`Update error for ${table}:`, error);
+                                        else console.error('Fetch error:', error);
                                     } catch (error) {
-                                        console.error(`Network error for ${table} update:`, error);
+                                        console.error('Network error:', error);
                                     }
                                 }
                             })
@@ -438,7 +422,6 @@
                     }),
                     auth: {
                         signInWithOAuth: async () => {
-                            console.log('Redirecting to GitHub login...');
                             window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=github&redirect_to=${window.location.origin}`;
                             return { user: null };
                         },
@@ -457,15 +440,11 @@
                                     mode: 'cors',
                                     credentials: 'include'
                                 });
-                                if (!response.ok) {
-                                    console.error('Session fetch failed:', response.status, response.statusText);
-                                    throw new Error(`HTTP error! status: ${response.status}`);
-                                }
+                                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                                 const { user, error } = await response.json();
-                                console.log('Session data:', { user, error });
                                 return { data: { session: { user, error } } };
                             } catch (error) {
-                                console.error('Network error for session:', error);
+                                console.error('Network error:', error);
                                 return { data: { session: { user: null, error } } };
                             }
                         }
@@ -499,8 +478,7 @@
                     { content: 'https://x.com/elonmusk/status/1234567890123456789', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null }
                 ];
                 const { error } = await supabase.from('messages').insert(seedData);
-                if (error) console.error('Seed data insert error:', error);
-                else await loadMessages();
+                if (!error) await loadMessages();
             }
         })();
 
@@ -550,16 +528,15 @@
         }
 
         function renderMessage(msg, container, level = 0) {
-            if (!msg) return; // 防止 null 錯誤
             const div = document.createElement('div');
             const isReply = level > 0;
             div.className = `message ${msg.side} ${isReply ? `reply reply-${level}` : ''} ${msg.mosaic && !isAdminMode ? 'mosaic' : ''}`;
-            const escapedContent = escapeHtml(msg.content || '');
+            const escapedContent = escapeHtml(msg.content);
             let contentHtml = `<div class="content">${escapedContent}</div>`;
 
             // 網址預覽
             const urlRegex = /(https?:\/\/[^\s]+)/g;
-            const urls = msg.content?.match(urlRegex) || [];
+            const urls = msg.content.match(urlRegex) || [];
             if (urls.length > 0) {
                 urls.forEach(url => {
                     const youtubeId = extractYouTubeId(url);
@@ -592,12 +569,12 @@
 
             div.innerHTML = `
                 ${contentHtml}
-                <div class="timestamp">${msg.timestamp || ''}</div>
-                ${level < 5 ? `<span class="reply-btn" onclick="toggleReply(${msg.id || 0}, ${level + 1})">reply</span>` : ''}
+                <div class="timestamp">${msg.timestamp}</div>
+                ${level < 5 ? `<span class="reply-btn" onclick="toggleReply(${msg.id}, ${level + 1})">reply</span>` : ''}
             `;
 
             // Admin 模式下所有留言顯示馬賽克切換按鈕
-            if (isAdminMode && msg.id) {
+            if (isAdminMode) {
                 const mosaicBtn = document.createElement('span');
                 mosaicBtn.className = 'mosaic-btn';
                 mosaicBtn.textContent = msg.mosaic ? '公開' : '隱藏';
@@ -648,13 +625,12 @@
             }
 
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session || !session.user) {
+            if (!session) {
                 alert('請先登入！');
                 supabase.auth.signInWithOAuth();
                 return;
             }
 
-            console.log('Sending message:', { content, mosaic, parentId: replyingTo, user_id: session.user.id }); // Debug
             const wasInactive = now - lastActivityTime > INACTIVITY_THRESHOLD;
             const newMessage = {
                 content: content || '',
@@ -693,9 +669,8 @@
 
         // ---- toggle mosaic ----
         async function toggleMosaic(id) {
-            const msg = messages.find(m => m && m.id === id);
-            if (msg && msg.id) {
-                console.log('Toggling mosaic for id:', id, 'new value:', !msg.mosaic); // Debug
+            const msg = messages.find(m => m.id === id);
+            if (msg) {
                 const { error } = await supabase.from('messages').update({ mosaic: !msg.mosaic }).eq('id', id);
                 if (error) {
                     console.error('Update error:', error.message || error);
@@ -703,8 +678,6 @@
                     msg.mosaic = !msg.mosaic;
                     renderMessages();
                 }
-            } else {
-                console.error('Invalid message or id:', { msg, id });
             }
         }
 
@@ -732,7 +705,7 @@
                 replyLevel = 0;
                 document.getElementById('message-input').placeholder = '익명으로 메시지를 보내기';
             } else {
-                replyingTo = id || 0; // 防止 null
+                replyingTo = id;
                 replyLevel = level;
                 document.getElementById('message-input').placeholder = `reply ${level}...`;
             }
@@ -742,17 +715,12 @@
         // ---- admin view ----
         async function toggleAdminMode() {
             const { data: { session } } = await supabase.auth.getSession();
-            console.log('Toggle Admin Mode - Session:', session); // Debug
-            if (session && session.user && session.user.id === ADMIN_USER_ID) {
+            if (session && session.user.id === ADMIN_USER_ID) {
                 isAdminMode = !isAdminMode;
-                document.getElementById('admin-toggle').textContent = isAdminMode ? '退出 Admin 模式' : '≡';
+                document.getElementById('admin-toggle').textContent = isAdminMode ? '退出 Admin 模式' : '切換 Admin 模式';
                 renderMessages();
             } else {
-                alert('僅限 Admin 用戶切換模式！請登入。');
-                if (!session || !session.user) {
-                    console.log('No session, triggering login...');
-                    supabase.auth.signInWithOAuth();
-                }
+                alert('僅限 Admin 用戶切換模式！');
             }
         }
 
@@ -853,8 +821,7 @@ ${message.image ? '包含圖片' : ''}`);
                     { content: 'https://x.com/elonmusk/status/1234567890123456789', side: 'right', timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), mosaic: false, parentId: null, level: 0, image: null }
                 ];
                 const { error } = await supabase.from('messages').insert(seedData);
-                if (error) console.error('Seed data insert error:', error);
-                else await loadMessages();
+                if (!error) await loadMessages();
             }
         })();
     </script>
